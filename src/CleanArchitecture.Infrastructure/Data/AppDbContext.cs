@@ -1,5 +1,4 @@
 ﻿using CleanArchitecture.Core.Interfaces;
-using CleanArchitecture.Core.Model;
 using Microsoft.EntityFrameworkCore;
 using System.Linq;
 using CleanArchitecture.Core.Entities;
@@ -21,6 +20,9 @@ namespace CleanArchitecture.Infrastructure.Data
 
         public override int SaveChanges()
         {
+            int result = base.SaveChanges();
+
+            // dispatch events only if save was successful
             var entitiesWithEvents = ChangeTracker.Entries<BaseEntity>()
                 .Select(e => e.Entity)
                 .Where(e => e.Events.Any())
@@ -35,7 +37,8 @@ namespace CleanArchitecture.Infrastructure.Data
                     _dispatcher.Dispatch(domainEvent);
                 }
             }
-            return base.SaveChanges();
+
+            return result;
         }
     }
 }

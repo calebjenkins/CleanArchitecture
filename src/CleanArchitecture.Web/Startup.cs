@@ -39,7 +39,7 @@ namespace CleanArchitecture.Web
 
             // TODO: Add DbContext and IOC
             services.AddDbContext<AppDbContext>(options =>
-                options.UseInMemoryDatabase());
+                options.UseInMemoryDatabase(Guid.NewGuid().ToString()));
                 //options.UseSqlServer(Configuration.GetConnectionString("DefaultConnection")));
 
             services.AddMvc();
@@ -57,7 +57,7 @@ namespace CleanArchitecture.Web
                     _.ConnectImplementationsToTypesClosing(typeof(IHandle<>));
                 });
                 
-                // TODO: Add Registry Classes
+                // TODO: Add Registry Classes to eliminate reference to Infrastructure
 
                 // TODO: Move to Infrastucture Registry
                 config.For(typeof(IRepository<>)).Add(typeof(EfRepository<>));

@@ -1,10 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using CleanArchitecture.Core.Entities;
+﻿using CleanArchitecture.Core.Entities;
 using CleanArchitecture.Core.Interfaces;
 using Microsoft.AspNetCore.Mvc;
+using System.Linq;
 
 namespace CleanArchitecture.Web.Controllers
 {
