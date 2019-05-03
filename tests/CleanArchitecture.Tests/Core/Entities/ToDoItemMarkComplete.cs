@@ -1,16 +1,15 @@
-﻿using CleanArchitecture.Core.Entities;
-using CleanArchitecture.Core.Events;
+﻿using CleanArchitecture.Core.Events;
 using System.Linq;
 using Xunit;
 
 namespace CleanArchitecture.Tests.Core.Entities
 {
-    public class ToDoItemMarkCompleteShould
+    public class ToDoItemMarkComplete
     {
         [Fact]
-        public void SetIsDoneToTrue()
+        public void SetsIsDoneToTrue()
         {
-            var item = new ToDoItem();
+            var item = new ToDoItemBuilder().Build();
 
             item.MarkComplete();
 
@@ -18,13 +17,13 @@ namespace CleanArchitecture.Tests.Core.Entities
         }
 
         [Fact]
-        public void RaiseToDoItemCompletedEvent()
+        public void RaisesToDoItemCompletedEvent()
         {
-            var item = new ToDoItem();
+            var item = new ToDoItemBuilder().Build();
 
             item.MarkComplete();
 
-            Assert.Equal(1, item.Events.Count());
+            Assert.Single(item.Events);
             Assert.IsType<ToDoItemCompletedEvent>(item.Events.First());
         }
     }

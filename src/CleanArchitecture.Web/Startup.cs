@@ -1,110 +1,73 @@
-﻿using System;
-using CleanArchitecture.Core.Interfaces;
-using CleanArchitecture.Core.Entities;
+﻿using Autofac;
+using Autofac.Extensions.DependencyInjection;
 using CleanArchitecture.Core.SharedKernel;
-using CleanArchitecture.Infrastructure;
 using CleanArchitecture.Infrastructure.Data;
-using CleanArchitecture.Infrastructure.DomainEvents;
-using CleanArchitecture.Web.ApiModels;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using StructureMap;
-using StructureMap.AutoMocking;
+using Swashbuckle.AspNetCore.Swagger;
+using System;
+using System.Reflection;
 
 namespace CleanArchitecture.Web
 {
     public class Startup
     {
-        public Startup(IHostingEnvironment env)
+        public Startup(IConfiguration config)
         {
-            var builder = new ConfigurationBuilder()
-                .SetBasePath(env.ContentRootPath)
-                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
-                .AddJsonFile($"appsettings.{env.EnvironmentName}.json", optional: true)
-                .AddEnvironmentVariables();
-            Configuration = builder.Build();
+            Configuration = config;
         }
 
-        public IConfigurationRoot Configuration { get; }
+        public IConfiguration Configuration { get; }
 
-        // This method gets called by the runtime. Use this method to add services to the container.
         public IServiceProvider ConfigureServices(IServiceCollection services)
         {
-            // Add framework services.
-
+            services.Configure<CookiePolicyOptions>(options =>
+            {
+                // This lambda determines whether user consent for non-essential cookies is needed for a given request.
+                options.CheckConsentNeeded = context => true;
+                options.MinimumSameSitePolicy = SameSiteMode.None;
+            });
             // TODO: Add DbContext and IOC
+            string dbName = Guid.NewGuid().ToString();
             services.AddDbContext<AppDbContext>(options =>
-                options.UseInMemoryDatabase(Guid.NewGuid().ToString()));
+                options.UseInMemoryDatabase(dbName));
                 //options.UseSqlServer(Configuration.GetConnectionString("DefaultConnection")));
 
-            services.AddMvc();
+            services.AddMvc()
+                .AddControllersAsServices()
+                .SetCompatibilityVersion(CompatibilityVersion.Version_2_1);
 
-            var container = new Container();
-
-            container.Configure(config =>
+            services.AddSwaggerGen(c =>
             {
-                config.Scan(_ =>
-                {
-                    _.AssemblyContainingType(typeof(Startup)); // Web
-                    _.AssemblyContainingType(typeof(BaseEntity)); // Core
-                    _.Assembly("CleanArchitecture.Infrastructure"); // Infrastructure
-                    _.WithDefaultConventions();
-                    _.ConnectImplementationsToTypesClosing(typeof(IHandle<>));
-                });
-                
-                // TODO: Add Registry Classes to eliminate reference to Infrastructure
-
-                // TODO: Move to Infrastucture Registry
-                config.For(typeof(IRepository<>)).Add(typeof(EfRepository<>));
-
-                //Populate the container using the service collection
-                config.Populate(services);
+                c.SwaggerDoc("v1", new Info { Title = "My API", Version = "v1" });
             });
 
-            return container.GetInstance<IServiceProvider>();
-            services.AddTransient<IRepository<ToDoItem>, EfRepository<ToDoItem>>();
+            return BuildDependencyInjectionProvider(services);
         }
 
-        public void ConfigureTesting(IApplicationBuilder app,
-            IHostingEnvironment env,
-            ILoggerFactory loggerFactory)
+        private static IServiceProvider BuildDependencyInjectionProvider(IServiceCollection services)
         {
-            this.Configure(app, env, loggerFactory);
-            PopulateTestData(app);
-            //var authorRepository = app.ApplicationServices
-            //    .GetService<IAuthorRepository>();
-            //Task.Run(() => PopulateSampleData(authorRepository));
+            var builder = new ContainerBuilder();
+
+            // Populate the container using the service collection
+            builder.Populate(services);
+
+            // TODO: Add Registry Classes to eliminate reference to Infrastructure
+            Assembly webAssembly = Assembly.GetExecutingAssembly();
+            Assembly coreAssembly = Assembly.GetAssembly(typeof(BaseEntity));
+            Assembly infrastructureAssembly = Assembly.GetAssembly(typeof(EfRepository)); // TODO: Move to Infrastucture Registry
+            builder.RegisterAssemblyTypes(webAssembly, coreAssembly, infrastructureAssembly).AsImplementedInterfaces();
+
+            IContainer applicationContainer = builder.Build();
+            return new AutofacServiceProvider(applicationContainer);
         }
 
-        private void PopulateTestData(IApplicationBuilder app)
-        {
-            var dbContext = app.ApplicationServices.GetService<AppDbContext>();
-            var toDos = dbContext.ToDoItems;
-            foreach (var item in toDos)
-            {
-                dbContext.Remove(item);
-            }
-            dbContext.SaveChanges();
-            dbContext.ToDoItems.Add(new ToDoItem()
-            {
-                Title = "Test Item 1",
-                Description = "Test Description One"
-            });
-            dbContext.ToDoItems.Add(new ToDoItem()
-            {
-                Title = "Test Item 2",
-                Description = "Test Description Two"
-            });
-            dbContext.SaveChanges();
-        }
-
-
-        // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IHostingEnvironment env, ILoggerFactory loggerFactory)
         {
             loggerFactory.AddConsole(Configuration.GetSection("Logging"));
@@ -113,14 +76,25 @@ namespace CleanArchitecture.Web
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
-                app.UseBrowserLink();
             }
             else
             {
                 app.UseExceptionHandler("/Home/Error");
+                app.UseHsts();
             }
 
+            app.UseHttpsRedirection();
             app.UseStaticFiles();
+            app.UseCookiePolicy();
+
+            // Enable middleware to serve generated Swagger as a JSON endpoint.
+            app.UseSwagger();
+
+            // Enable middleware to serve swagger-ui (HTML, JS, CSS, etc.), specifying the Swagger JSON endpoint.
+            app.UseSwaggerUI(c =>
+            {
+                c.SwaggerEndpoint("/swagger/v1/swagger.json", "My API V1");
+            });
 
             app.UseMvc(routes =>
             {
